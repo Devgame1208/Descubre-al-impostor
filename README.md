@@ -10,4 +10,5 @@ Juego multijugador en tiempo real para adivinar quién es el impostor.
 5. ¡Voten para encontrar al impostor!
 
 ## Jugar ahora
-[Jugar ImpostorWho](https://TU_USUARIO.github.io/impostor-game)
+
+[Jugar ImpostorWho](https://devgame1208.github.io/Descubre-al-impostor/)
