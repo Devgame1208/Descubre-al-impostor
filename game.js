@@ -554,4 +554,173 @@ function ImpostorGame() {
                   const responses = roomData?.game?.responses?.[player.id] || {};
                   const roundResponse = responses[currentRound];
                   return (
-                    <div key={player.id} className="flex items-center justify-between
+                    <div key={player.id} className="flex items-center justify-between bg-gray-50 rounded-lg p-3">
+                      <span className="font-medium">{player.name}</span>
+                      <span className="text-gray-600">
+                        {roundResponse?.clue || '...'}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (gamePhase === 'voting') {
+    const votes = roomData?.game?.votes || {};
+    const hasVoted = votes[currentPlayerId];
+    const allVoted = Object.keys(votes).length === players.length;
+    
+    const voteCount = {};
+    Object.values(votes).forEach(votedId => {
+      voteCount[votedId] = (voteCount[votedId] || 0) + 1;
+    });
+
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-orange-600 via-red-500 to-pink-500 p-4">
+        <div className="max-w-4xl mx-auto">
+          <div className="bg-white rounded-3xl shadow-2xl p-8">
+            <h2 className="text-3xl font-bold text-center mb-6 flex items-center justify-center gap-2">
+              <Icons.Vote />
+              Fase de Votación
+            </h2>
+            
+            <p className="text-center text-gray-600 mb-6">
+              ¡Es hora de votar! ¿Quién crees que es el impostor?
+            </p>
+            
+            <div className="grid grid-cols-2 gap-4 mb-6">
+              {players.map(player => (
+                <button
+                  key={player.id}
+                  onClick={() => submitVote(player.id)}
+                  disabled={hasVoted || player.id === currentPlayerId}
+                  className={`p-4 rounded-xl font-semibold transition ${
+                    votes[currentPlayerId] === player.id
+                      ? 'bg-red-500 text-white'
+                      : player.id === currentPlayerId
+                      ? 'bg-gray-200 text-gray-400'
+                      : 'bg-gray-100 hover:bg-red-100'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span>{player.name}</span>
+                    <span className="text-sm font-bold ml-2">
+                      {voteCount[player.id] ? `(${voteCount[player.id]})` : ''}
+                    </span>
+                  </div>
+                  {votes[currentPlayerId] === player.id && <span className="text-xs">✓ Votado</span>}
+                </button>
+              ))}
+            </div>
+            
+            <div className="bg-blue-50 rounded-xl p-4 mb-6">
+              <p className="text-center font-medium">
+                Votos: {Object.keys(votes).length} / {players.length}
+              </p>
+            </div>
+            
+            {isHost && allVoted && (
+              <button
+                onClick={finishVoting}
+                className="w-full bg-green-500 hover:bg-green-600 text-white font-semibold py-3 rounded-xl transition"
+              >
+                Revelar Resultado
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (gamePhase === 'finished') {
+    const impostorIds = roomData?.game?.impostorIds || [];
+    const winner = roomData?.game?.winner;
+    const word = roomData?.game?.word;
+
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-green-600 via-blue-500 to-purple-500 flex items-center justify-center p-4">
+        <div className="bg-white rounded-3xl shadow-2xl p-8 max-w-2xl w-full">
+          <h2 className="text-4xl font-bold text-center mb-6">
+            {winner === 'players' ? '🎉 ¡Ganaron los Jugadores!' : '😈 ¡Ganaron los Impostores!'}
+          </h2>
+          
+          <div className="bg-gradient-to-r from-yellow-100 to-orange-100 rounded-xl p-6 mb-6">
+            <p className="text-lg mb-2">
+              <strong>La palabra era:</strong> <span className="text-2xl font-bold text-orange-600">{word}</span>
+            </p>
+            <p className="text-lg">
+              <strong>El/Los impostor(es):</strong>
+              {impostorIds.map((id, idx) => {
+                const impostor = players.find(p => p.id === id);
+                return (
+                  <span key={id} className="text-xl font-semibold text-red-600">
+                    {idx > 0 && ', '}
+                    {' '}{impostor?.name}
+                  </span>
+                );
+              })}
+            </p>
+          </div>
+          
+          <div className="mb-6 max-h-96 overflow-y-auto">
+            <h3 className="text-xl font-semibold mb-3">Historial de pistas:</h3>
+            {players.map(player => {
+              const responses = roomData?.game?.responses?.[player.id] || {};
+              const isImpostor = impostorIds.includes(player.id);
+              return (
+                <div key={player.id} className="mb-4 bg-gray-50 rounded-lg p-4">
+                  <p className="font-semibold mb-2 flex items-center gap-2">
+                    {player.name}
+                    {isImpostor && <span className="text-xs bg-red-500 text-white px-2 py-1 rounded">IMPOSTOR</span>}
+                  </p>
+                  <div className="space-y-1">
+                    {Object.entries(responses).map(([round, data]) => (
+                      <p key={round} className="text-sm text-gray-700">
+                        Ronda {round}: <span className="font-medium">{data.clue}</span>
+                      </p>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          
+          {isHost && (
+            <div className="flex gap-3">
+              <button
+                onClick={resetGame}
+                className="flex-1 bg-blue-500 hover:bg-blue-600 text-white font-semibold py-3 rounded-xl transition"
+              >
+                Nueva Partida
+              </button>
+              <button
+                onClick={goHome}
+                className="flex-1 bg-gray-500 hover:bg-gray-600 text-white font-semibold py-3 rounded-xl transition"
+              >
+                Salir
+              </button>
+            </div>
+          )}
+          
+          {!isHost && (
+            <div className="text-center text-gray-600">
+              Esperando a que el host inicie una nueva partida...
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  return null;
+}
+
+// Renderizar la aplicación
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<ImpostorGame />);
