@@ -80,6 +80,78 @@
           const [showInstructions, setShowInstructions] = useState(false);
           const [clueInput, setClueInput] = useState('');
 
+	// Timer automático para cada turno
+          useEffect(() => {
+            if (gameStarted && gamePhase === 'playing') {
+              const currentIndex = roomData?.game?.currentTurnIndex || 0;
+              const currentPlayer = players[currentIndex % players.length];
+              
+              // Si es turno de un bot, que actúe automáticamente
+              if (currentPlayer?.isBot) {
+                const botTimeout = setTimeout(() => {
+                  const impostorIds = roomData?.game?.impostorIds || [];
+                  const isBotImpostor = impostorIds.includes(currentPlayer.id);
+                  
+                  // Generar pista del bot
+                  let clue;
+                  if (isBotImpostor) {
+                    const genericClues = {
+                      animales: ['vive', 'se mueve', 'criatura', 'ser'],
+                      comida: ['rico', 'se come', 'alimento', 'comestible'],
+                      objetos: ['útil', 'cosa', 'objeto', 'herramienta'],
+                      lugares: ['sitio', 'lugar', 'espacio', 'zona'],
+                      colores: ['tono', 'color', 'matiz', 'pigmento'],
+                      musica: ['suena', 'música', 'melodía', 'instrumento'],
+                      juegos: ['juego', 'entretenimiento', 'diversión', 'virtual'],
+                      variada: ['algo', 'cosa', 'palabra', 'elemento']
+                    };
+                    const category = roomData?.config?.category;
+                    const clues = genericClues[category] || ['cosa', 'objeto'];
+                    clue = clues[Math.floor(Math.random() * clues.length)];
+                  } else {
+                    // Bot normal da pista sobre la palabra
+                    const word = roomData?.game?.word;
+                    const wordClues = {
+                      perro: ['ladra', 'canino', 'mascota', 'fiel'],
+                      gato: ['maúlla', 'felino', 'ronronea', 'independiente'],
+                      elefante: ['trompa', 'grande', 'memoria', 'gris'],
+                      león: ['melena', 'ruge', 'rey', 'felino'],
+                      pizza: ['italiana', 'queso', 'redonda', 'horno'],
+                      hamburguesa: ['pan', 'carne', 'rápida', 'americana'],
+                      sushi: ['japonés', 'arroz', 'pescado', 'crudo'],
+                      minecraft: ['bloques', 'construir', 'pixelado', 'cavar']
+                    };
+                    clue = wordClues[word] 
+                      ? wordClues[word][Math.floor(Math.random() * wordClues[word].length)]
+                      : word?.charAt(0) + '...';
+                  }
+                  
+                  submitClue(clue);
+                }, 2000); // Bot espera 2 segundos
+                
+                return () => clearTimeout(botTimeout);
+              }
+            }
+            
+            // Bots votan automáticamente
+            if (gamePhase === 'voting') {
+              const votes = roomData?.game?.votes || {};
+              const botPlayers = players.filter(p => p.isBot && !votes[p.id]);
+              
+              if (botPlayers.length > 0) {
+                const voteTimeout = setTimeout(() => {
+                  botPlayers.forEach(bot => {
+                    const otherPlayers = players.filter(p => p.id !== bot.id);
+                    const randomPlayer = otherPlayers[Math.floor(Math.random() * otherPlayers.length)];
+                    database.ref(`rooms/${roomCode}/game/votes/${bot.id}`).set(randomPlayer.id);
+                  });
+                }, 2000);
+                
+                return () => clearTimeout(voteTimeout);
+              }
+            }
+          }, [roomData?.game?.currentTurnIndex, gamePhase, players, roomData?.game?.votes]);
+
           useEffect(() => {
             if (roomCode) {
               const roomRef = database.ref(`rooms/${roomCode}`);
