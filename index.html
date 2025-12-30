@@ -69,6 +69,16 @@
             opacity: 1;
             filter: blur(0);
         }
+        
+        .shake {
+            animation: shake 0.5s ease-in-out;
+        }
+        
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
     </style>
 </head>
 <body>
@@ -156,6 +166,7 @@
             const [clueInput, setClueInput] = useState('');
             const [showWord, setShowWord] = useState(false);
             const [showImpostorAnimation, setShowImpostorAnimation] = useState(false);
+            const [votingError, setVotingError] = useState('');
             
             const wordRevealTimer = useRef(null);
             const impostorAnimationTimer = useRef(null);
@@ -203,7 +214,13 @@
                 if (roomCode) {
                     const roomRef = database.ref(`rooms/${roomCode}`);
                     roomRef.on('value', (snapshot) => {
-                        setRoomData(snapshot.val());
+                        const data = snapshot.val();
+                        setRoomData(data);
+                        
+                        // Limpiar error de votación cuando cambia la fase
+                        if (data?.game?.phase !== 'voting') {
+                            setVotingError('');
+                        }
                     });
                     return () => roomRef.off();
                 }
@@ -280,16 +297,21 @@
                     if (botPlayers.length > 0) {
                         const voteTimeout = setTimeout(() => {
                             botPlayers.forEach(bot => {
-                                const otherPlayers = players.filter(p => p.id !== bot.id);
-                                const randomPlayer = otherPlayers[Math.floor(Math.random() * otherPlayers.length)];
-                                database.ref(`rooms/${roomCode}/game/votes/${bot.id}`).set(randomPlayer.id);
+                                const otherPlayers = players.filter(p => p.id !== bot.id && !p.isBot);
+                                const randomPlayer = otherPlayers.length > 0 
+                                    ? otherPlayers[Math.floor(Math.random() * otherPlayers.length)]
+                                    : players.filter(p => p.id !== bot.id)[0];
+                                    
+                                if (randomPlayer) {
+                                    database.ref(`rooms/${roomCode}/game/votes/${bot.id}`).set(randomPlayer.id);
+                                }
                             });
                         }, 2000);
                         
                         return () => clearTimeout(voteTimeout);
                     }
                 }
-            }, [roomData?.game?.currentTurnIndex, gamePhase, players, roomData?.game?.votes, roomData?.game?.responses]);
+            }, [roomData?.game?.currentTurnIndex, gamePhase, players, roomData?.game?.votes, roomData?.game?.responses, roomCode]);
             
             // Temporizador para turnos
             useEffect(() => {
@@ -319,7 +341,7 @@
                         database.ref(`rooms/${roomCode}/game/timer`).set(null);
                     }
                 }
-            }, [roomData?.game?.currentTurnIndex, gamePhase, players, roomData?.game?.responses]);
+            }, [roomData?.game?.currentTurnIndex, gamePhase, players, roomData?.game?.responses, roomCode]);
             
             // Funciones principales
             const generateRoomCode = () => {
@@ -478,115 +500,153 @@
             };
             
             const submitVote = async (votedPlayerId) => {
-                await database.ref(`rooms/${roomCode}/game/votes/${currentPlayerId}`).set(votedPlayerId);
+                try {
+                    await database.ref(`rooms/${roomCode}/game/votes/${currentPlayerId}`).set(votedPlayerId);
+                } catch (error) {
+                    console.error('Error al votar:', error);
+                }
             };
             
             const finishVoting = async () => {
-                const votes = roomData?.game?.votes || {};
-                const impostorIds = roomData?.game?.impostorIds || [];
-                const playersList = Object.values(roomData?.players || {});
-                
-                const voteCounts = {};
-                Object.values(votes).forEach(vote => {
-                    voteCounts[vote] = (voteCounts[vote] || 0) + 1;
-                });
-                
-                const mostVoted = Object.entries(voteCounts).sort((a, b) => b[1] - a[1])[0];
-                const playersWon = mostVoted && impostorIds.includes(mostVoted[0]);
-                
-                // Actualizar estadísticas
-                const currentStats = roomData?.roomStats || { gamesPlayed: 0, impostorWins: 0, playerWins: 0 };
-                const newStats = {
-                    gamesPlayed: currentStats.gamesPlayed + 1,
-                    impostorWins: playersWon ? currentStats.impostorWins + 1 : currentStats.impostorWins,
-                    playerWins: !playersWon ? currentStats.playerWins + 1 : currentStats.playerWins
-                };
-                
-                // Actualizar TOP 3 impostores
-                let topImpostors = roomData?.topImpostors || [];
-                
-                // Agregar puntos a los impostores que ganaron
-                if (playersWon) {
+                try {
+                    setVotingError('');
+                    
+                    // Verificar que todos hayan votado
+                    const votes = roomData?.game?.votes || {};
+                    const allVoted = Object.keys(votes).length === players.length;
+                    
+                    if (!allVoted) {
+                        setVotingError('Esperando a que todos voten...');
+                        return;
+                    }
+                    
+                    const impostorIds = roomData?.game?.impostorIds || [];
+                    const playersList = Object.values(roomData?.players || {});
+                    
+                    // Contar votos
+                    const voteCounts = {};
+                    Object.values(votes).forEach(vote => {
+                        voteCounts[vote] = (voteCounts[vote] || 0) + 1;
+                    });
+                    
+                    // Determinar el más votado
+                    let mostVoted = null;
+                    if (Object.keys(voteCounts).length > 0) {
+                        const sortedVotes = Object.entries(voteCounts).sort((a, b) => b[1] - a[1]);
+                        mostVoted = sortedVotes[0]; // [playerId, votes]
+                    }
+                    
+                    const playersWon = mostVoted && impostorIds.includes(mostVoted[0]);
+                    
+                    // Actualizar estadísticas
+                    const currentStats = roomData?.roomStats || { gamesPlayed: 0, impostorWins: 0, playerWins: 0 };
+                    const newStats = {
+                        gamesPlayed: currentStats.gamesPlayed + 1,
+                        impostorWins: playersWon ? currentStats.impostorWins + 1 : currentStats.impostorWins,
+                        playerWins: !playersWon ? currentStats.playerWins + 1 : currentStats.playerWins
+                    };
+                    
+                    // Actualizar TOP 3 impostores
+                    let topImpostors = roomData?.topImpostors || [];
+                    
+                    // Agregar puntos a los impostores
                     impostorIds.forEach(impostorId => {
                         const impostor = playersList.find(p => p.id === impostorId);
                         if (impostor) {
-                            const existing = topImpostors.find(item => item.id === impostorId);
-                            if (existing) {
-                                existing.points += 3; // +3 puntos por ganar
-                                existing.wins += 1;
+                            const existingIndex = topImpostors.findIndex(item => item.id === impostorId);
+                            
+                            if (existingIndex >= 0) {
+                                // Actualizar impostor existente
+                                topImpostors[existingIndex] = {
+                                    ...topImpostors[existingIndex],
+                                    points: topImpostors[existingIndex].points + (playersWon ? 3 : 1),
+                                    wins: playersWon ? topImpostors[existingIndex].wins + 1 : topImpostors[existingIndex].wins,
+                                    games: topImpostors[existingIndex].games + 1
+                                };
                             } else {
+                                // Agregar nuevo impostor
                                 topImpostors.push({
                                     id: impostorId,
                                     name: impostor.name,
-                                    points: 3,
-                                    wins: 1,
+                                    points: playersWon ? 3 : 1,
+                                    wins: playersWon ? 1 : 0,
                                     games: 1
                                 });
                             }
                         }
                     });
-                } else {
-                    // Los impostores pierden, pero aún así ganan 1 punto por participar
-                    impostorIds.forEach(impostorId => {
-                        const impostor = playersList.find(p => p.id === impostorId);
-                        if (impostor) {
-                            const existing = topImpostors.find(item => item.id === impostorId);
-                            if (existing) {
-                                existing.points += 1; // +1 punto por participar
-                                existing.games += 1;
-                            } else {
-                                topImpostors.push({
-                                    id: impostorId,
-                                    name: impostor.name,
-                                    points: 1,
-                                    wins: 0,
-                                    games: 1
-                                });
-                            }
-                        }
+                    
+                    // Ordenar por puntos (descendente) y luego por victorias
+                    topImpostors.sort((a, b) => {
+                        if (b.points !== a.points) return b.points - a.points;
+                        return b.wins - a.wins;
                     });
+                    
+                    // Limitar a TOP 3
+                    topImpostors = topImpostors.slice(0, 3);
+                    
+                    // Actualizar todo en Firebase
+                    await database.ref(`rooms/${roomCode}`).update({
+                        'game/phase': 'finished',
+                        'game/winner': playersWon ? 'impostors' : 'players',
+                        'roomStats': newStats,
+                        'topImpostors': topImpostors
+                    });
+                    
+                } catch (error) {
+                    console.error('Error al terminar votación:', error);
+                    setVotingError('Error al procesar la votación: ' + error.message);
                 }
-                
-                // Ordenar y limitar a TOP 3
-                topImpostors.sort((a, b) => b.points - a.points);
-                topImpostors = topImpostors.slice(0, 3);
-                
-                await database.ref(`rooms/${roomCode}`).update({
-                    'game.phase': 'finished',
-                    'game.winner': playersWon ? 'impostors' : 'players',
-                    'roomStats': newStats,
-                    'topImpostors': topImpostors
-                });
             };
             
             const startNewGame = async () => {
-                // Resetear estados de animación
-                setShowWord(false);
-                setShowImpostorAnimation(false);
-                
-                await database.ref(`rooms/${roomCode}/game`).update({
-                    started: false,
-                    phase: 'lobby',
-                    word: null,
-                    impostorIds: null,
-                    currentTurnIndex: 0,
-                    responses: {},
-                    votes: {},
-                    timer: null,
-                    winner: null
-                });
+                try {
+                    // Resetear estados de animación
+                    setShowWord(false);
+                    setShowImpostorAnimation(false);
+                    
+                    await database.ref(`rooms/${roomCode}/game`).set({
+                        started: false,
+                        phase: 'lobby',
+                        word: null,
+                        impostorIds: null,
+                        currentTurnIndex: 0,
+                        responses: {},
+                        votes: {},
+                        timer: null,
+                        winner: null,
+                        startedAt: null
+                    });
+                } catch (error) {
+                    console.error('Error al iniciar nueva partida:', error);
+                }
             };
             
             const resetGame = async () => {
-                // Resetear estados de animación
-                setShowWord(false);
-                setShowImpostorAnimation(false);
-                
-                await database.ref(`rooms/${roomCode}`).update({
-                    game: { started: false, phase: 'lobby' },
-                    topImpostors: [],
-                    roomStats: { gamesPlayed: 0, impostorWins: 0, playerWins: 0 }
-                });
+                try {
+                    // Resetear estados de animación
+                    setShowWord(false);
+                    setShowImpostorAnimation(false);
+                    
+                    await database.ref(`rooms/${roomCode}`).update({
+                        game: { 
+                            started: false, 
+                            phase: 'lobby',
+                            word: null,
+                            impostorIds: null,
+                            currentTurnIndex: 0,
+                            responses: {},
+                            votes: {},
+                            timer: null,
+                            winner: null,
+                            startedAt: null
+                        },
+                        topImpostors: [],
+                        roomStats: { gamesPlayed: 0, impostorWins: 0, playerWins: 0 }
+                    });
+                } catch (error) {
+                    console.error('Error al reiniciar juego:', error);
+                }
             };
             
             const copyRoomCode = () => {
@@ -596,16 +656,22 @@
             };
             
             const goHome = async () => {
-                if (roomCode && currentPlayerId) {
-                    await database.ref(`rooms/${roomCode}/players/${currentPlayerId}`).remove();
+                try {
+                    if (roomCode && currentPlayerId) {
+                        await database.ref(`rooms/${roomCode}/players/${currentPlayerId}`).remove();
+                    }
+                } catch (error) {
+                    console.error('Error al salir de la sala:', error);
+                } finally {
+                    setScreen('home');
+                    setRoomCode('');
+                    setPlayerName('');
+                    setCurrentPlayerId(null);
+                    setRoomData(null);
+                    setShowWord(false);
+                    setShowImpostorAnimation(false);
+                    setVotingError('');
                 }
-                setScreen('home');
-                setRoomCode('');
-                setPlayerName('');
-                setCurrentPlayerId(null);
-                setRoomData(null);
-                setShowWord(false);
-                setShowImpostorAnimation(false);
             };
             
             const toggleWordVisibility = () => {
@@ -1006,7 +1072,7 @@
                 );
             }
             
-            // Pantalla de votación
+            // Pantalla de votación - CORREGIDA
             if (gamePhase === 'voting') {
                 const votes = roomData?.game?.votes || {};
                 const hasVoted = votes[currentPlayerId];
@@ -1029,6 +1095,26 @@
                                 <p className="text-center text-gray-600 mb-6">
                                     ¡Es hora de votar! ¿Quién crees que es el impostor?
                                 </p>
+                                
+                                {/* Mensaje de error */}
+                                {votingError && (
+                                    <div className={`mb-4 p-3 rounded-lg ${votingError.includes('Error') ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'} shake`}>
+                                        <p className="flex items-center gap-2">
+                                            <Icon type="alert" size={16} />
+                                            {votingError}
+                                        </p>
+                                    </div>
+                                )}
+                                
+                                {/* Contador de votos */}
+                                <div className="mb-6 bg-blue-50 rounded-xl p-4">
+                                    <p className="text-center font-medium text-lg">
+                                        Votos: <span className="font-bold">{Object.keys(votes).length}</span> / <span className="font-bold">{players.length}</span>
+                                    </p>
+                                    <p className="text-center text-sm text-gray-600 mt-1">
+                                        {allVoted ? '¡Todos han votado!' : 'Esperando votos...'}
+                                    </p>
+                                </div>
                                 
                                 <div className="grid grid-cols-2 gap-4 mb-6">
                                     {players.map(player => (
@@ -1055,19 +1141,34 @@
                                     ))}
                                 </div>
                                 
-                                <div className="bg-blue-50 rounded-xl p-4 mb-6">
-                                    <p className="text-center font-medium">
-                                        Votos: {Object.keys(votes).length} / {players.length}
-                                    </p>
-                                </div>
+                                {isHost && (
+                                    <div className="space-y-3">
+                                        <button 
+                                            onClick={finishVoting}
+                                            disabled={!allVoted}
+                                            className={`w-full ${allVoted ? 'bg-green-500 hover:bg-green-600' : 'bg-gray-300'} text-white font-semibold py-3 rounded-xl transition`}
+                                        >
+                                            {allVoted ? 'Terminar Votación' : 'Esperando votos...'}
+                                        </button>
+                                        
+                                        {!allVoted && (
+                                            <div className="text-center text-sm text-gray-500">
+                                                El botón se activará cuando todos hayan votado
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
                                 
-                                {isHost && allVoted && (
-                                    <button 
-                                        onClick={finishVoting}
-                                        className="w-full bg-green-500 hover:bg-green-600 text-white font-semibold py-3 rounded-xl transition"
-                                    >
-                                        Terminar Votación
-                                    </button>
+                                {!isHost && !hasVoted && (
+                                    <div className="text-center text-gray-600 py-4">
+                                        ¡Vota por quién crees que es el impostor!
+                                    </div>
+                                )}
+                                
+                                {!isHost && hasVoted && (
+                                    <div className="text-center text-gray-600 py-4">
+                                        Has votado. Esperando a que los demás voten...
+                                    </div>
                                 )}
                             </div>
                         </div>
@@ -1130,6 +1231,9 @@
                                                     </div>
                                                     <div className="text-right">
                                                         <p className="text-xl font-bold">{impostor.points} pts</p>
+                                                        <p className="text-xs text-gray-500">
+                                                            {index === 0 ? '🥇 Líder' : index === 1 ? '🥈 Segundo' : '🥉 Tercero'}
+                                                        </p>
                                                     </div>
                                                 </div>
                                             ))}
