@@ -98,10 +98,34 @@
             0%, 100% { opacity: 1; }
             50% { opacity: 0.5; }
         }
+        
+        @keyframes slideUp {
+            from { transform: translateY(100%); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        
+        .slide-up {
+            animation: slideUp 0.3s ease-out;
+        }
     </style>
 </head>
 <body>
+    <!-- Audio elements -->
+    <audio id="turnSound" preload="auto">
+        <source src="https://assets.mixkit.co/sfx/preview/mixkit-game-show-wrong-answer-buzz-950.mp3" type="audio/mpeg">
+    </audio>
+    <audio id="timeWarningSound" preload="auto">
+        <source src="https://assets.mixkit.co/sfx/preview/mixkit-unlock-game-notification-253.mp3" type="audio/mpeg">
+    </audio>
+    <audio id="timeUpSound" preload="auto">
+        <source src="https://assets.mixkit.co/sfx/preview/mixkit-warning-alarm-buzzer-1551.mp3" type="audio/mpeg">
+    </audio>
+    <audio id="newRoundSound" preload="auto">
+        <source src="https://assets.mixkit.co/sfx/preview/mixkit-winning-chimes-2015.mp3" type="audio/mpeg">
+    </audio>
+    
     <div id="root"></div>
+    
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -142,25 +166,170 @@
                 trophy: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>,
                 star: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>,
                 refresh: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M3 21v-5h5"/></svg>,
-                clock: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                clock: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>,
+                volume: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
             };
             return icons[type] || null;
         };
 
-        // Base de datos de palabras
+        // BASE DE DATOS DE PALABRAS MEJORADA CON SINÓNIMOS Y DESCRIPCIONES
         const WORDS_DATABASE = {
-            animales: ['perro', 'gato', 'elefante', 'león', 'tigre', 'panda', 'koala', 'delfín', 'ballena', 'águila'],
-            comida: ['pizza', 'hamburguesa', 'sushi', 'tacos', 'pasta', 'helado', 'ensalada', 'sandwich', 'paella', 'ramen'],
-            objetos: ['teléfono', 'computadora', 'reloj', 'llave', 'libro', 'guitarra', 'pelota', 'silla', 'lámpara', 'teclado'],
-            lugares: ['playa', 'montaña', 'ciudad', 'bosque', 'desierto', 'museo', 'parque', 'restaurante', 'aeropuerto', 'hospital'],
-            colores: ['rojo', 'azul', 'verde', 'amarillo', 'morado', 'naranja', 'rosa', 'negro', 'blanco', 'gris'],
-            musica: ['guitarra', 'piano', 'batería', 'violín', 'trompeta', 'flauta', 'saxofón', 'arpa', 'bajo', 'micrófono'],
-            juegos: ['minecraft', 'fortnite', 'valorant', 'league of legends', 'counter strike', 'gta', 'zelda', 'pokemon', 'mario', 'sonic'],
-            variada: []
+            animales: {
+                words: [
+                    'perro', 'gato', 'elefante', 'león', 'tigre', 'panda', 'koala', 
+                    'delfín', 'ballena', 'águila', 'oso', 'zorro', 'jirafa', 'cebra',
+                    'cocodrilo', 'serpiente', 'pingüino', 'tortuga', 'rana', 'murciélago',
+                    'ardilla', 'conejo', 'caballo', 'vaca', 'oveja', 'cerdo', 'gallina',
+                    'pato', 'ganso', 'búho'
+                ],
+                clues: {
+                    perro: ['ladra', 'mascota', 'canino', 'fiel', 'collar', 'hueso', 'peludo', 'guau'],
+                    gato: ['maúlla', 'felino', 'ronronea', 'bigotes', 'independiente', 'araña', 'ratón'],
+                    elefante: ['trompa', 'grande', 'memoria', 'colmillos', 'orejas grandes', 'sabana', 'pesado'],
+                    león: ['melena', 'rey', 'ruge', 'felino', 'selva', 'carnívoro', 'manada'],
+                    tigre: ['rayas', 'felino', 'naranja', 'selva', 'cazador', 'poderoso', 'sigiloso'],
+                    panda: ['bambú', 'oso', 'blanco y negro', 'china', 'tranquilo', 'peludo', 'en peligro'],
+                    koala: ['eucalipto', 'australia', 'oso', 'dormilón', 'arbóreo', 'marsupial', 'tierno'],
+                    delfín: ['inteligente', 'marino', 'mamífero', 'salta', 'amistoso', 'oceano', 'sonar'],
+                    ballena: ['grande', 'oceano', 'mamífero', 'canta', 'azul', 'espuma', 'migración'],
+                    águila: ['vuela', 'rapaz', 'vista aguda', 'nido alto', 'pico ganchudo', 'símbolo', 'libertad'],
+                    oso: ['hiberna', 'peludo', 'grande', 'miel', 'garras', 'bosque', 'pardo'],
+                    zorro: ['astuto', 'rojo', 'cola esponjosa', 'nocturno', 'ladrón', 'bosque', 'sigiloso']
+                }
+            },
+            comida: {
+                words: [
+                    'pizza', 'hamburguesa', 'sushi', 'tacos', 'pasta', 'helado', 'ensalada',
+                    'sandwich', 'paella', 'ramen', 'lasaña', 'burrito', 'quesadilla', 'tortilla',
+                    'guacamole', 'chocolate', 'galletas', 'pastel', 'pan', 'arroz', 'pollo',
+                    'pescado', 'carne', 'verduras', 'frutas', 'sopa', 'cereal', 'yogur', 'queso'
+                ],
+                clues: {
+                    pizza: ['italiana', 'queso', 'pepperoni', 'masa', 'horno', 'redonda', 'corteza', 'delivery'],
+                    hamburguesa: ['pan', 'carne', 'queso', 'lechuga', 'tomate', 'rápida', 'comida rápida', 'bbq'],
+                    sushi: ['japonés', 'arroz', 'pescado', 'crudo', 'alga', 'wasabi', 'soja', 'rollo'],
+                    tacos: ['mexicano', 'tortilla', 'carne', 'cilantro', 'cebolla', 'picante', 'limón', 'salsa'],
+                    pasta: ['italiana', 'espagueti', 'fideos', 'salsa', 'tomate', 'albóndigas', 'parmesano', 'hervir'],
+                    helado: ['frío', 'dulce', 'cono', 'cremoso', 'sabores', 'verano', 'postre', 'chocolate'],
+                    ensalada: ['verduras', 'lechuga', 'tomate', 'pepino', 'saludable', 'fresco', 'vinagreta', 'ligero'],
+                    sandwich: ['pan', 'jamón', 'queso', 'tostado', 'fácil', 'almuerzo', 'mayonesa', 'variedades']
+                }
+            },
+            objetos: {
+                words: [
+                    'teléfono', 'computadora', 'reloj', 'llave', 'libro', 'guitarra', 'pelota',
+                    'silla', 'lámpara', 'teclado', 'mouse', 'monitor', 'mesa', 'cama', 'sofá',
+                    'espejo', 'cuchara', 'tenedor', 'cuchillo', 'plato', 'vaso', 'copa', 'cámara',
+                    'radio', 'televisor', 'ventilador', 'refrigerador', 'horno', 'microondas', 'licuadora'
+                ],
+                clues: {
+                    teléfono: ['llamar', 'móvil', 'pantalla', 'apps', 'mensajes', 'whatsapp', 'smartphone', 'contactos'],
+                    computadora: ['teclado', 'pantalla', 'internet', 'trabajar', 'jugar', 'programar', 'archivos', 'software'],
+                    reloj: ['hora', 'muñeca', 'digital', 'analógico', 'alarma', 'cronómetro', 'pulsera', 'tiempo'],
+                    llave: ['abrir', 'cerradura', 'puerta', 'casa', 'coche', 'metal', 'enganchar', 'seguridad'],
+                    libro: ['leer', 'páginas', 'historia', 'autor', 'biblioteca', 'conocimiento', 'novela', 'educación'],
+                    guitarra: ['música', 'cuerdas', 'tocar', 'acordes', 'eléctrica', 'acústica', 'concierto', 'rock'],
+                    pelota: ['jugar', 'redonda', 'deporte', 'fútbol', 'baloncesto', 'rebotar', 'equipo', 'gol']
+                }
+            },
+            lugares: {
+                words: [
+                    'playa', 'montaña', 'ciudad', 'bosque', 'desierto', 'museo', 'parque',
+                    'restaurante', 'aeropuerto', 'hospital', 'escuela', 'universidad', 'biblioteca',
+                    'supermercado', 'centro comercial', 'cine', 'teatro', 'estadio', 'iglesia',
+                    'hotel', 'banco', 'farmacia', 'estación', 'puerto', 'plaza', 'castillo',
+                    'puente', 'túnel', 'volcán', 'isla'
+                ],
+                clues: {
+                    playa: ['arena', 'mar', 'sol', 'olas', 'toalla', 'bronceado', 'vacaciones', 'concha'],
+                    montaña: ['alto', 'escalar', 'nieve', 'cima', 'senderismo', 'vista', 'aventura', 'oxígeno'],
+                    ciudad: ['edificios', 'tráfico', 'gente', 'calles', 'ruido', 'oportunidades', 'metro', 'urbano'],
+                    bosque: ['árboles', 'naturaleza', 'animales', 'senderos', 'oxígeno', 'tranquilo', 'hojas', 'setas'],
+                    desierto: ['arena', 'calor', 'cactus', 'seco', 'dunas', 'camello', 'oasis', 'extremo'],
+                    museo: ['arte', 'historia', 'cuadros', 'exhibiciones', 'cultura', 'aprender', 'antigüedades', 'turistas'],
+                    parque: ['jardín', 'bancos', 'fuente', 'paseo', 'familia', 'juegos', 'tranquilo', 'verde']
+                }
+            },
+            colores: {
+                words: [
+                    'rojo', 'azul', 'verde', 'amarillo', 'morado', 'naranja', 'rosa',
+                    'negro', 'blanco', 'gris', 'marrón', 'celeste', 'turquesa', 'violeta',
+                    'dorado', 'plateado', 'beige', 'ocre', 'índigo', 'magenta', 'cian',
+                    'esmeralda', 'rubí', 'zafiro', 'ámbar', 'ambar', 'carmesí', 'lavanda', 'menta'
+                ],
+                clues: {
+                    rojo: ['sangre', 'amor', 'fuego', 'pasión', 'peligro', 'tomate', 'manzana', 'rosas'],
+                    azul: ['cielo', 'mar', 'tranquilo', 'frío', 'confianza', 'agua', 'océano', 'jeans'],
+                    verde: ['naturaleza', 'hojas', 'esperanza', 'primavera', 'hierba', 'ecológico', 'bosque', 'manzana'],
+                    amarillo: ['sol', 'felicidad', 'limón', 'energía', 'girasol', 'oro', 'alegría', 'plátano'],
+                    morado: ['reyes', 'misterio', 'uva', 'lavanda', 'creatividad', 'magia', 'elegancia', 'berenjena'],
+                    naranja: ['fruta', 'energía', 'creatividad', 'zorro', 'puesta de sol', 'calabaza', 'jugo', 'alerta'],
+                    rosa: ['dulce', 'amor', 'flores', 'femenino', 'algodón de azúcar', 'suave', 'ternura', 'bebé']
+                }
+            },
+            musica: {
+                words: [
+                    'guitarra', 'piano', 'batería', 'violín', 'trompeta', 'flauta', 'saxofón',
+                    'arpa', 'bajo', 'micrófono', 'teclado', 'acordeón', 'banjo', 'chelo',
+                    'contrabajo', 'clarinete', 'oboe', 'trombón', 'tuba', 'timbales', 'maracas',
+                    'güiro', 'castañuelas', 'triángulo', 'xilófono', 'armónica', 'ukelele', 'mandolina'
+                ],
+                clues: {
+                    guitarra: ['cuerdas', 'rock', 'acordes', 'eléctrica', 'solista', 'músico', 'banda', 'melodía'],
+                    piano: ['teclas', 'clásico', 'acordes', 'grande', 'música', 'instrumento', 'orquesta', 'sonata'],
+                    batería: ['percusión', 'tambores', 'ritmo', 'platillos', 'golpes', 'energía', 'concierto', 'beat'],
+                    violín: ['cuerda', 'clásico', 'arco', 'orquesta', 'agudo', 'melodía', 'concertino', 'virtuoso'],
+                    trompeta: ['viento', 'metal', 'sonido fuerte', 'jazz', 'melodía', 'fanfarria', 'brass', 'solo'],
+                    flauta: ['viento', 'madera', 'suave', 'melodía', 'clásica', 'aire', 'dulce', 'orquesta'],
+                    saxofón: ['jazz', 'viento', 'metal', 'suave', 'melodía', 'improvisación', 'cool', 'nightclub']
+                }
+            },
+            juegos: {
+                words: [
+                    'minecraft', 'fortnite', 'valorant', 'league of legends', 'counter strike', 'gta',
+                    'zelda', 'pokemon', 'mario', 'sonic', 'call of duty', 'fifa', 'among us',
+                    'roblox', 'overwatch', 'dota', 'world of warcraft', 'skyrim', 'fallout',
+                    'assassins creed', 'resident evil', 'god of war', 'horizon', 'spider-man',
+                    'uncharted', 'the last of us', 'red dead redemption', 'cyberpunk', 'elden ring'
+                ],
+                clues: {
+                    minecraft: ['bloques', 'construir', 'crafteo', 'creeper', 'minar', 'survival', 'pixelado', 'mods'],
+                    fortnite: ['battle royale', 'construir', 'baile', 'skin', 'temporada', 'victoria real', 'loot', 'escudo'],
+                    valorant: ['disparos', 'agentes', 'habilidades', 'competitive', 'spike', 'eco', 'clutch', 'headshot'],
+                    'league of legends': ['moba', 'campeones', 'nexo', 'torres', 'minions', 'ranked', 'pentakill', 'summoners rift'],
+                    'counter strike': ['terroristas', 'antiterroristas', 'bomba', 'eco', 'awp', 'defuse', 'competitive', 'clutch'],
+                    gta: ['coches', 'crímenes', 'mundo abierto', 'misión', 'arma', 'pandilla', 'dinero', 'libertad'],
+                    pokemon: ['atrapar', 'entrenador', 'pokeball', 'evolución', 'batalla', 'pokedex', 'gimnasio', 'liga']
+                }
+            },
+            variada: {
+                words: [],
+                clues: {}
+            }
         };
-        
-        WORDS_DATABASE.variada = Object.values(WORDS_DATABASE).flat();
-        
+
+        // Generar la categoría variada combinando todas las palabras
+        WORDS_DATABASE.variada.words = [
+            ...WORDS_DATABASE.animales.words,
+            ...WORDS_DATABASE.comida.words,
+            ...WORDS_DATABASE.objetos.words,
+            ...WORDS_DATABASE.lugares.words,
+            ...WORDS_DATABASE.colores.words,
+            ...WORDS_DATABASE.musica.words,
+            ...WORDS_DATABASE.juegos.words
+        ].slice(0, 50); // Limitar a 50 palabras para variedad
+
+        // Combinar todas las pistas
+        WORDS_DATABASE.variada.clues = {
+            ...WORDS_DATABASE.animales.clues,
+            ...WORDS_DATABASE.comida.clues,
+            ...WORDS_DATABASE.objetos.clues,
+            ...WORDS_DATABASE.lugares.clues,
+            ...WORDS_DATABASE.colores.clues,
+            ...WORDS_DATABASE.musica.clues,
+            ...WORDS_DATABASE.juegos.clues
+        };
+
         const CATEGORY_HINTS = {
             animales: 'Animal',
             comida: 'Comida',
@@ -189,11 +358,17 @@
             const [votingError, setVotingError] = useState('');
             const [roundTransition, setRoundTransition] = useState(false);
             const [transitionCountdown, setTransitionCountdown] = useState(5);
+            const [soundEnabled, setSoundEnabled] = useState(true);
+            const [notification, setNotification] = useState('');
             
             const wordRevealTimer = useRef(null);
             const impostorAnimationTimer = useRef(null);
             const playerTimerRef = useRef(null);
             const transitionTimerRef = useRef(null);
+            const notificationTimerRef = useRef(null);
+            const timeWarningPlayed = useRef(false);
+            const timeUpPlayed = useRef(false);
+            const turnSoundPlayed = useRef(false);
             
             const players = Object.values(roomData?.players || {});
             const isHost = roomData?.host === currentPlayerId;
@@ -203,6 +378,87 @@
             const isImpostor = impostorIds.includes(currentPlayerId);
             const topImpostors = roomData?.topImpostors || [];
             
+            // Función para reproducir sonidos
+            const playSound = (soundId) => {
+                if (!soundEnabled) return;
+                
+                try {
+                    const audio = document.getElementById(soundId);
+                    if (audio) {
+                        audio.currentTime = 0;
+                        audio.play().catch(e => console.log("Error reproduciendo sonido:", e));
+                    }
+                } catch (error) {
+                    console.log("Error con audio:", error);
+                }
+            };
+            
+            // Función para mostrar notificación temporal
+            const showNotification = (message, duration = 3000) => {
+                setNotification(message);
+                if (notificationTimerRef.current) {
+                    clearTimeout(notificationTimerRef.current);
+                }
+                notificationTimerRef.current = setTimeout(() => {
+                    setNotification('');
+                }, duration);
+            };
+            
+            // Efecto para sonido de turno
+            useEffect(() => {
+                if (gameStarted && gamePhase === 'playing' && !roundTransition) {
+                    const currentIndex = roomData?.game?.currentTurnIndex || 0;
+                    const currentPlayer = players[currentIndex % players.length];
+                    
+                    if (currentPlayer?.id === currentPlayerId && !turnSoundPlayed.current) {
+                        // Sonido para indicar que es tu turno
+                        playSound('turnSound');
+                        showNotification('¡Es tu turno! Escribe una pista', 2000);
+                        turnSoundPlayed.current = true;
+                    } else if (currentPlayer?.id !== currentPlayerId) {
+                        // Resetear flag cuando no es nuestro turno
+                        turnSoundPlayed.current = false;
+                    }
+                }
+            }, [roomData?.game?.currentTurnIndex, gameStarted, gamePhase, currentPlayerId, players, roundTransition]);
+            
+            // Efecto para sonido de advertencia de tiempo
+            useEffect(() => {
+                if (gameStarted && gamePhase === 'playing' && !roundTransition) {
+                    const timerValue = roomData?.game?.timer;
+                    
+                    if (timerValue !== null && timerValue !== undefined) {
+                        // Sonido de advertencia cuando quedan 10 segundos
+                        if (timerValue === 10 && !timeWarningPlayed.current) {
+                            playSound('timeWarningSound');
+                            showNotification('¡Quedan 10 segundos!', 1500);
+                            timeWarningPlayed.current = true;
+                        }
+                        
+                        // Sonido cuando se acaba el tiempo
+                        if (timerValue === 0 && !timeUpPlayed.current) {
+                            playSound('timeUpSound');
+                            showNotification('¡Se acabó el tiempo!', 2000);
+                            timeUpPlayed.current = true;
+                        }
+                        
+                        // Resetear flags cuando el timer se reinicia
+                        if (timerValue > 10) {
+                            timeWarningPlayed.current = false;
+                            timeUpPlayed.current = false;
+                        }
+                    }
+                }
+            }, [roomData?.game?.timer, gameStarted, gamePhase, roundTransition]);
+            
+            // Efecto para sonido de nueva ronda
+            useEffect(() => {
+                if (roundTransition && transitionCountdown === 5) {
+                    playSound('newRoundSound');
+                    showNotification(`¡Siguiente ronda en ${transitionCountdown} segundos!`, 2000);
+                }
+            }, [roundTransition, transitionCountdown]);
+            
             // Efecto para animaciones al empezar el juego
             useEffect(() => {
                 if (gameStarted && gamePhase === 'playing') {
@@ -210,6 +466,11 @@
                     if (wordRevealTimer.current) clearTimeout(wordRevealTimer.current);
                     if (impostorAnimationTimer.current) clearTimeout(impostorAnimationTimer.current);
                     if (playerTimerRef.current) clearInterval(playerTimerRef.current);
+                    
+                    // Resetear flags de sonido
+                    timeWarningPlayed.current = false;
+                    timeUpPlayed.current = false;
+                    turnSoundPlayed.current = false;
                     
                     // Mostrar palabra temporalmente para jugadores normales
                     if (!isImpostor) {
@@ -305,8 +566,6 @@
                     
                     // Solo activar timer para jugador actual que no sea bot y no haya respondido
                     if (currentPlayer && !currentPlayer.isBot && !hasResponded && currentPlayer.id === currentPlayerId) {
-                        console.log(`Iniciando timer para ${currentPlayer.name}`);
-                        
                         const startTime = Date.now();
                         const timeLimit = 30000; // 30 segundos exactos
                         let remainingSeconds = 30;
@@ -324,7 +583,6 @@
                             if (remainingSeconds === 0) {
                                 clearInterval(playerTimerRef.current);
                                 playerTimerRef.current = null;
-                                console.log(`Timer terminado para ${currentPlayer.name}`);
                                 
                                 // Enviar respuesta automática
                                 submitClue('(sin respuesta)');
@@ -344,7 +602,7 @@
                 };
             }, [roomData?.game?.currentTurnIndex, gamePhase, players, roomData?.game?.responses, roomCode, currentPlayerId, gameStarted, roundTransition]);
             
-            // Lógica para bots
+            // Lógica para bots MEJORADA con pistas de sinónimos
             useEffect(() => {
                 if (gameStarted && gamePhase === 'playing' && !roundTransition) {
                     const currentIndex = roomData?.game?.currentTurnIndex || 0;
@@ -360,44 +618,35 @@
                                 let clue;
                                 
                                 if (isBotImpostor) {
+                                    // Para bots impostores: pistas genéricas según categoría
                                     const genericClues = {
-                                        animales: ['vive', 'se mueve', 'criatura', 'ser', 'respira'],
-                                        comida: ['rico', 'se come', 'alimento', 'comestible', 'nutritivo'],
-                                        objetos: ['útil', 'cosa', 'objeto', 'herramienta', 'material'],
-                                        lugares: ['sitio', 'lugar', 'espacio', 'zona', 'ubicación'],
-                                        colores: ['tono', 'color', 'matiz', 'pigmento', 'tonalidad'],
-                                        musica: ['suena', 'música', 'melodía', 'instrumento', 'ritmo'],
-                                        juegos: ['juego', 'entretenimiento', 'diversión', 'virtual', 'consola'],
-                                        variada: ['algo', 'cosa', 'palabra', 'elemento', 'término']
+                                        animales: ['vive', 'se mueve', 'criatura', 'ser', 'respira', 'animal', 'organismo'],
+                                        comida: ['rico', 'se come', 'alimento', 'comestible', 'nutritivo', 'sabor', 'ingrediente'],
+                                        objetos: ['útil', 'cosa', 'objeto', 'herramienta', 'material', 'instrumento', 'artefacto'],
+                                        lugares: ['sitio', 'lugar', 'espacio', 'zona', 'ubicación', 'área', 'localización'],
+                                        colores: ['tono', 'color', 'matiz', 'pigmento', 'tonalidad', 'sombra', 'tinte'],
+                                        musica: ['suena', 'música', 'melodía', 'instrumento', 'ritmo', 'armonía', 'nota'],
+                                        juegos: ['juego', 'entretenimiento', 'diversión', 'virtual', 'consola', 'videojuego', 'pasatiempo'],
+                                        variada: ['algo', 'cosa', 'palabra', 'elemento', 'término', 'concepto', 'idea']
                                     };
                                     
                                     const category = roomData?.config?.category;
-                                    const clues = genericClues[category] || ['cosa', 'objeto'];
+                                    const clues = genericClues[category] || ['cosa', 'objeto', 'elemento'];
                                     clue = clues[Math.floor(Math.random() * clues.length)];
                                 } else {
+                                    // Para bots normales: pistas específicas de la palabra
                                     const word = roomData?.game?.word;
-                                    const wordClues = {
-                                        perro: ['ladra', 'canino', 'mascota', 'fiel', 'collar'],
-                                        gato: ['maúlla', 'felino', 'ronronea', 'independiente', 'bigotes'],
-                                        elefante: ['trompa', 'grande', 'memoria', 'gris', 'colmillos'],
-                                        león: ['melena', 'ruge', 'rey', 'felino', 'savana'],
-                                        tigre: ['rayas', 'felino', 'naranja', 'asiático', 'cazador'],
-                                        pizza: ['italiana', 'queso', 'redonda', 'horno', 'corteza'],
-                                        hamburguesa: ['pan', 'carne', 'rápida', 'americana', 'ketchup'],
-                                        sushi: ['japonés', 'arroz', 'pescado', 'crudo', 'alga'],
-                                        tacos: ['mexicano', 'tortilla', 'picante', 'carne', 'cilantro'],
-                                        pasta: ['italiana', 'fideos', 'hervir', 'salsa', 'harina'],
-                                        minecraft: ['bloques', 'construir', 'pixelado', 'cavar', 'creeper'],
-                                        fortnite: ['batalla', 'construye', 'victoria', 'emotes', 'temporada'],
-                                        rojo: ['sangre', 'fuego', 'pasión', 'tomate', 'rosa'],
-                                        azul: ['cielo', 'mar', 'frío', 'agua', 'tranquilo'],
-                                        teléfono: ['llama', 'móvil', 'pantalla', 'apps', 'comunicación'],
-                                        computadora: ['teclado', 'pantalla', 'tecnología', 'programa', 'datos']
-                                    };
+                                    const category = roomData?.config?.category;
+                                    const categoryData = WORDS_DATABASE[category];
                                     
-                                    clue = wordClues[word] ? 
-                                        wordClues[word][Math.floor(Math.random() * wordClues[word].length)] : 
-                                        word?.charAt(0) + '...';
+                                    if (categoryData && categoryData.clues && categoryData.clues[word]) {
+                                        // Usar pista específica de la palabra
+                                        const specificClues = categoryData.clues[word];
+                                        clue = specificClues[Math.floor(Math.random() * specificClues.length)];
+                                    } else {
+                                        // Pista genérica basada en la palabra
+                                        clue = word?.charAt(0) + '...';
+                                    }
                                 }
                                 
                                 submitClue(clue);
@@ -538,7 +787,8 @@
                     return;
                 }
                 
-                const word = WORDS_DATABASE[category][Math.floor(Math.random() * WORDS_DATABASE[category].length)];
+                const categoryData = WORDS_DATABASE[category];
+                const word = categoryData.words[Math.floor(Math.random() * categoryData.words.length)];
                 const shuffled = [...players].sort(() => Math.random() - 0.5);
                 const impostorIds = shuffled.slice(0, roomData?.config?.impostorCount || 1).map(p => p.id);
                 
@@ -628,57 +878,111 @@
                         voteCounts[vote] = (voteCounts[vote] || 0) + 1;
                     });
                     
-                    // Determinar el más votado
-                    let mostVoted = null;
+                    // Determinar el más votado y el segundo más votado
+                    let voteResults = [];
                     if (Object.keys(voteCounts).length > 0) {
-                        const sortedVotes = Object.entries(voteCounts).sort((a, b) => b[1] - a[1]);
-                        mostVoted = sortedVotes[0]; // [playerId, votes]
+                        voteResults = Object.entries(voteCounts).sort((a, b) => b[1] - a[1]);
                     }
                     
-                    const playersWon = mostVoted && impostorIds.includes(mostVoted[0]);
+                    const mostVoted = voteResults[0]; // [playerId, votes]
+                    const secondMostVoted = voteResults[1]; // [playerId, votes] o undefined
+                    
+                    // NUEVA LÓGICA: El impostor gana solo si NO es el más votado
+                    // O si tiene menos votos que otro jugador (empate favorable)
+                    let impostorWon = false;
+                    
+                    if (mostVoted) {
+                        const isImpostorMostVoted = impostorIds.includes(mostVoted[0]);
+                        
+                        if (!isImpostorMostVoted) {
+                            // El impostor NO es el más votado → GANA
+                            impostorWon = true;
+                        } else if (secondMostVoted && mostVoted[1] === secondMostVoted[1]) {
+                            // Empate entre el impostor y otro jugador
+                            // El impostor tiene las mismas votos que otro → GANA (empate favorable)
+                            impostorWon = true;
+                        }
+                        // Si el impostor es el más votado y tiene más votos que el segundo → PIERDE
+                    }
                     
                     // Actualizar estadísticas
                     const currentStats = roomData?.roomStats || { gamesPlayed: 0, impostorWins: 0, playerWins: 0 };
                     const newStats = {
                         gamesPlayed: currentStats.gamesPlayed + 1,
-                        impostorWins: playersWon ? currentStats.impostorWins + 1 : currentStats.impostorWins,
-                        playerWins: !playersWon ? currentStats.playerWins + 1 : currentStats.playerWins
+                        impostorWins: impostorWon ? currentStats.impostorWins + 1 : currentStats.impostorWins,
+                        playerWins: !impostorWon ? currentStats.playerWins + 1 : currentStats.playerWins
                     };
                     
-                    // Actualizar TOP 3 impostores
+                    // NUEVA LÓGICA PARA TOP 3: Solo impostores que ganaron suman puntos
                     let topImpostors = roomData?.topImpostors || [];
                     
-                    // Agregar puntos a los impostores
-                    impostorIds.forEach(impostorId => {
-                        const impostor = playersList.find(p => p.id === impostorId);
-                        if (impostor) {
-                            const existingIndex = topImpostors.findIndex(item => item.id === impostorId);
-                            
-                            if (existingIndex >= 0) {
-                                // Actualizar impostor existente
-                                topImpostors[existingIndex] = {
-                                    ...topImpostors[existingIndex],
-                                    points: topImpostors[existingIndex].points + (playersWon ? 3 : 1),
-                                    wins: playersWon ? topImpostors[existingIndex].wins + 1 : topImpostors[existingIndex].wins,
-                                    games: topImpostors[existingIndex].games + 1
-                                };
-                            } else {
-                                // Agregar nuevo impostor
-                                topImpostors.push({
-                                    id: impostorId,
-                                    name: impostor.name,
-                                    points: playersWon ? 3 : 1,
-                                    wins: playersWon ? 1 : 0,
-                                    games: 1
-                                });
+                    // Agregar puntos solo a impostores que GANARON
+                    if (impostorWon) {
+                        impostorIds.forEach(impostorId => {
+                            const impostor = playersList.find(p => p.id === impostorId);
+                            if (impostor) {
+                                const existingIndex = topImpostors.findIndex(item => item.id === impostorId);
+                                
+                                if (existingIndex >= 0) {
+                                    // Actualizar impostor existente - +3 puntos por ganar
+                                    topImpostors[existingIndex] = {
+                                        ...topImpostors[existingIndex],
+                                        points: topImpostors[existingIndex].points + 3,
+                                        wins: topImpostors[existingIndex].wins + 1,
+                                        games: topImpostors[existingIndex].games + 1,
+                                        successfulGames: (topImpostors[existingIndex].successfulGames || 0) + 1
+                                    };
+                                } else {
+                                    // Agregar nuevo impostor - 3 puntos por primera victoria
+                                    topImpostors.push({
+                                        id: impostorId,
+                                        name: impostor.name,
+                                        points: 3,
+                                        wins: 1,
+                                        games: 1,
+                                        successfulGames: 1
+                                    });
+                                }
                             }
-                        }
-                    });
+                        });
+                    } else {
+                        // Si el impostor perdió, solo suma 0 puntos pero cuenta el juego
+                        impostorIds.forEach(impostorId => {
+                            const impostor = playersList.find(p => p.id === impostorId);
+                            if (impostor) {
+                                const existingIndex = topImpostors.findIndex(item => item.id === impostorId);
+                                
+                                if (existingIndex >= 0) {
+                                    // Actualizar impostor existente - 0 puntos por perder
+                                    topImpostors[existingIndex] = {
+                                        ...topImpostors[existingIndex],
+                                        games: topImpostors[existingIndex].games + 1
+                                        // No suma puntos ni victorias
+                                    };
+                                } else {
+                                    // Agregar nuevo impostor - 0 puntos por primera derrota
+                                    topImpostors.push({
+                                        id: impostorId,
+                                        name: impostor.name,
+                                        points: 0,
+                                        wins: 0,
+                                        games: 1,
+                                        successfulGames: 0
+                                    });
+                                }
+                            }
+                        });
+                    }
                     
-                    // Ordenar por puntos (descendente) y luego por victorias
+                    // Ordenar por puntos (descendente) y luego por porcentaje de victorias
                     topImpostors.sort((a, b) => {
                         if (b.points !== a.points) return b.points - a.points;
-                        return b.wins - a.wins;
+                        
+                        // Calcular porcentaje de victorias
+                        const aWinRate = a.games > 0 ? (a.wins / a.games) : 0;
+                        const bWinRate = b.games > 0 ? (b.wins / b.games) : 0;
+                        
+                        return bWinRate - aWinRate;
                     });
                     
                     // Limitar a TOP 3
@@ -687,7 +991,7 @@
                     // Actualizar todo en Firebase
                     await database.ref(`rooms/${roomCode}`).update({
                         'game/phase': 'finished',
-                        'game/winner': playersWon ? 'impostors' : 'players',
+                        'game/winner': impostorWon ? 'impostors' : 'players',
                         'roomStats': newStats,
                         'topImpostors': topImpostors
                     });
@@ -776,12 +1080,18 @@
                     setVotingError('');
                     setRoundTransition(false);
                     setTransitionCountdown(5);
+                    setNotification('');
                 }
             };
             
             const toggleWordVisibility = () => {
                 if (isImpostor) return;
                 setShowWord(!showWord);
+            };
+            
+            const toggleSound = () => {
+                setSoundEnabled(!soundEnabled);
+                showNotification(soundEnabled ? 'Sonido desactivado' : 'Sonido activado', 1500);
             };
             
             // Pantalla de inicio
@@ -803,7 +1113,8 @@
                                     <p><strong>4.</strong> <span className="text-red-600 font-semibold">¡ATENCIÓN STREAMERS!</span> La palabra se oculta automáticamente</p>
                                     <p><strong>5.</strong> Por turnos dan pistas sobre su palabra</p>
                                     <p><strong>6.</strong> Al final, votan quién es el impostor</p>
-                                    <p><strong>7.</strong> <span className="text-yellow-600 font-semibold">¡NUEVO!</span> Compite por el TOP 3 de mejores impostores</p>
+                                    <p><strong>7.</strong> <span className="text-yellow-600 font-semibold">¡NUEVO!</span> TOP 3 impostores con mejor desempeño</p>
+                                    <p><strong>8.</strong> <span className="text-green-600 font-semibold">¡SONIDOS!</span> Notificaciones auditivas para tu turno</p>
                                     <p className="text-red-600 font-semibold mt-3">🎯 Objetivo: Los jugadores deben encontrar al impostor</p>
                                     <button onClick={() => setShowInstructions(false)} className="w-full mt-3 bg-blue-500 text-white py-2 rounded-lg hover:bg-blue-600">
                                         Entendido
@@ -869,11 +1180,27 @@
                     <div className="min-h-screen bg-gradient-to-br from-blue-600 via-purple-500 to-pink-500 p-4">
                         <div className="max-w-4xl mx-auto">
                             <div className="bg-white rounded-3xl shadow-2xl p-8">
+                                {/* Notificación flotante */}
+                                {notification && (
+                                    <div className="fixed top-4 right-4 bg-blue-500 text-white px-4 py-2 rounded-lg shadow-lg slide-up z-50">
+                                        {notification}
+                                    </div>
+                                )}
+                                
                                 <div className="flex justify-between items-center mb-6">
                                     <h2 className="text-3xl font-bold text-gray-800">Sala de Espera</h2>
-                                    <button onClick={goHome} className="p-2 hover:bg-gray-100 rounded-lg transition">
-                                        <Icon type="home" size={24} />
-                                    </button>
+                                    <div className="flex items-center gap-2">
+                                        <button 
+                                            onClick={toggleSound}
+                                            className={`p-2 rounded-lg transition ${soundEnabled ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'}`}
+                                            title={soundEnabled ? 'Desactivar sonidos' : 'Activar sonidos'}
+                                        >
+                                            <Icon type="volume" size={20} />
+                                        </button>
+                                        <button onClick={goHome} className="p-2 hover:bg-gray-100 rounded-lg transition">
+                                            <Icon type="home" size={24} />
+                                        </button>
+                                    </div>
                                 </div>
                                 
                                 <div className="bg-gradient-to-r from-purple-100 to-pink-100 rounded-xl p-4 mb-6 flex items-center justify-between">
@@ -910,7 +1237,7 @@
                                     </div>
                                 )}
                                 
-                                {/* TOP 3 Impostores */}
+                                {/* TOP 3 Impostores MEJORADO */}
                                 {topImpostors.length > 0 && (
                                     <div className="mb-6 bg-gradient-to-r from-yellow-50 to-orange-50 rounded-xl p-4 fade-in">
                                         <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
@@ -918,25 +1245,34 @@
                                             TOP 3 Mejores Impostores
                                         </h3>
                                         <div className="space-y-3">
-                                            {topImpostors.map((impostor, index) => (
-                                                <div key={impostor.id} className={`p-3 rounded-lg flex items-center justify-between ${index === 0 ? 'rank-1' : index === 1 ? 'rank-2' : 'rank-3'}`}>
-                                                    <div className="flex items-center gap-3">
-                                                        <span className={`text-2xl font-bold ${index === 0 ? 'trophy-gold' : index === 1 ? 'trophy-silver' : 'trophy-bronze'}`}>
-                                                            {index === 0 ? '🥇' : index === 1 ? '🥈' : '🥉'}
-                                                        </span>
-                                                        <div>
-                                                            <p className="font-semibold">{impostor.name}</p>
-                                                            <p className="text-sm text-gray-600">
-                                                                {impostor.wins} victorias • {impostor.games} partidas
+                                            {topImpostors.map((impostor, index) => {
+                                                const winRate = impostor.games > 0 ? Math.round((impostor.wins / impostor.games) * 100) : 0;
+                                                return (
+                                                    <div key={impostor.id} className={`p-3 rounded-lg flex items-center justify-between ${index === 0 ? 'rank-1' : index === 1 ? 'rank-2' : 'rank-3'}`}>
+                                                        <div className="flex items-center gap-3">
+                                                            <span className={`text-2xl font-bold ${index === 0 ? 'trophy-gold' : index === 1 ? 'trophy-silver' : 'trophy-bronze'}`}>
+                                                                {index === 0 ? '🥇' : index === 1 ? '🥈' : '🥉'}
+                                                            </span>
+                                                            <div>
+                                                                <p className="font-semibold">{impostor.name}</p>
+                                                                <p className="text-sm text-gray-600">
+                                                                    {impostor.wins} victorias • {impostor.games} partidas
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                        <div className="text-right">
+                                                            <p className="text-xl font-bold">{impostor.points} pts</p>
+                                                            <p className="text-xs text-gray-500">
+                                                                {winRate}% efectividad
                                                             </p>
                                                         </div>
                                                     </div>
-                                                    <div className="text-right">
-                                                        <p className="text-xl font-bold">{impostor.points} pts</p>
-                                                    </div>
-                                                </div>
-                                            ))}
+                                                );
+                                            })}
                                         </div>
+                                        <p className="text-xs text-gray-500 mt-2">
+                                            * Puntos: +3 por ganar, 0 por perder
+                                        </p>
                                     </div>
                                 )}
                                 
@@ -977,7 +1313,7 @@
                                                 <option value="">-- Selecciona --</option>
                                                 {Object.keys(WORDS_DATABASE).map(cat => (
                                                     <option key={cat} value={cat}>
-                                                        {cat.charAt(0).toUpperCase() + cat.slice(1)}
+                                                        {cat.charAt(0).toUpperCase() + cat.slice(1)} ({WORDS_DATABASE[cat].words.length} palabras)
                                                     </option>
                                                 ))}
                                             </select>
@@ -1041,6 +1377,13 @@
                 return (
                     <div className="min-h-screen bg-gradient-to-br from-indigo-600 via-purple-500 to-pink-500 p-4">
                         <div className="max-w-4xl mx-auto">
+                            {/* Notificación flotante */}
+                            {notification && (
+                                <div className="fixed top-4 right-4 bg-blue-500 text-white px-4 py-2 rounded-lg shadow-lg slide-up z-50">
+                                    {notification}
+                                </div>
+                            )}
+                            
                             <div className="bg-white rounded-3xl shadow-2xl p-8">
                                 <div className="flex justify-between items-center mb-6">
                                     <div className="flex items-center gap-4">
@@ -1058,6 +1401,13 @@
                                             </div>
                                         )}
                                     </div>
+                                    <button 
+                                        onClick={toggleSound}
+                                        className={`p-2 rounded-lg transition ${soundEnabled ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'}`}
+                                        title={soundEnabled ? 'Desactivar sonidos' : 'Activar sonidos'}
+                                    >
+                                        <Icon type="volume" size={20} />
+                                    </button>
                                 </div>
                                 
                                 {/* Transición entre rondas */}
@@ -1096,6 +1446,11 @@
                                                     <p className="text-sm text-red-500 mt-2">
                                                         No sabes la palabra, solo la categoría: <span className="font-semibold">{CATEGORY_HINTS[roomData?.config?.category]}</span>
                                                     </p>
+                                                    <div className="mt-3 p-2 bg-red-100 rounded-lg">
+                                                        <p className="text-xs text-red-700">
+                                                            <strong>Consejo:</strong> Da pistas que puedan aplicarse a muchas palabras de esta categoría
+                                                        </p>
+                                                    </div>
                                                 </div>
                                             )}
                                         </div>
@@ -1114,7 +1469,30 @@
                                             
                                             <div className={`transition-all duration-300 ${showWord ? 'opacity-100' : 'opacity-30 blur-sm'}`}>
                                                 {showWord ? (
-                                                    <p className="text-3xl font-bold text-orange-600">{word}</p>
+                                                    <div>
+                                                        <p className="text-3xl font-bold text-orange-600">{word}</p>
+                                                        <div className="mt-2">
+                                                            <p className="text-sm text-gray-600">Posibles pistas:</p>
+                                                            <div className="flex flex-wrap gap-1 mt-1">
+                                                                {(() => {
+                                                                    const category = roomData?.config?.category;
+                                                                    const categoryData = WORDS_DATABASE[category];
+                                                                    if (categoryData && categoryData.clues && categoryData.clues[word]) {
+                                                                        return categoryData.clues[word].slice(0, 5).map((clue, idx) => (
+                                                                            <span key={idx} className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                                                                                {clue}
+                                                                            </span>
+                                                                        ));
+                                                                    }
+                                                                    return (
+                                                                        <span className="text-xs text-gray-500">
+                                                                            Busca sinónimos o características
+                                                                        </span>
+                                                                    );
+                                                                })()}
+                                                            </div>
+                                                        </div>
+                                                    </div>
                                                 ) : (
                                                     <div className="text-center py-4">
                                                         <p className="text-lg text-gray-500 mb-2">La palabra está oculta</p>
@@ -1160,7 +1538,7 @@
                                                     setClueInput('');
                                                 }
                                             }}
-                                            placeholder="Escribe tu pista..."
+                                            placeholder="Escribe tu pista (sinónimos, características)..."
                                             className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-purple-500 focus:outline-none text-lg"
                                             disabled={roundTransition}
                                         />
@@ -1181,7 +1559,7 @@
                                                     Tiempo restante: <span className={`font-bold ${timerValue <= 10 ? 'text-red-600' : 'text-blue-600'}`}>{timerValue}s</span>
                                                 </p>
                                                 {timerValue <= 10 && (
-                                                    <p className="text-xs text-red-500 mt-1">¡Date prisa!</p>
+                                                    <p className="text-xs text-red-500 mt-1">¡Date prisa! Se acabará el tiempo</p>
                                                 )}
                                             </div>
                                         )}
@@ -1238,6 +1616,13 @@
                 return (
                     <div className="min-h-screen bg-gradient-to-br from-orange-600 via-red-500 to-pink-500 p-4">
                         <div className="max-w-4xl mx-auto">
+                            {/* Notificación flotante */}
+                            {notification && (
+                                <div className="fixed top-4 right-4 bg-blue-500 text-white px-4 py-2 rounded-lg shadow-lg slide-up z-50">
+                                    {notification}
+                                </div>
+                            )}
+                            
                             <div className="bg-white rounded-3xl shadow-2xl p-8">
                                 <h2 className="text-3xl font-bold text-center mb-6 flex items-center justify-center gap-2">
                                     <Icon type="vote" size={32} />
@@ -1338,6 +1723,13 @@
                 return (
                     <div className="min-h-screen bg-gradient-to-br from-green-600 via-blue-500 to-purple-500 p-4">
                         <div className="max-w-4xl mx-auto">
+                            {/* Notificación flotante */}
+                            {notification && (
+                                <div className="fixed top-4 right-4 bg-blue-500 text-white px-4 py-2 rounded-lg shadow-lg slide-up z-50">
+                                    {notification}
+                                </div>
+                            )}
+                            
                             <div className="bg-white rounded-3xl shadow-2xl p-8">
                                 <h2 className="text-4xl font-bold text-center mb-6 fade-in">
                                     {winner === 'players' ? '🎉 ¡Ganaron los Jugadores!' : '😈 ¡Ganaron los Impostores!'}
@@ -1360,7 +1752,7 @@
                                     </p>
                                 </div>
                                 
-                                {/* TOP 3 actualizado */}
+                                {/* TOP 3 actualizado con nueva lógica */}
                                 {topImpostors.length > 0 && (
                                     <div className="mb-6 bg-gradient-to-r from-yellow-50 to-orange-50 rounded-xl p-4 slide-in">
                                         <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
@@ -1368,28 +1760,34 @@
                                             TOP 3 Mejores Impostores
                                         </h3>
                                         <div className="space-y-3">
-                                            {topImpostors.map((impostor, index) => (
-                                                <div key={impostor.id} className={`p-3 rounded-lg flex items-center justify-between ${index === 0 ? 'rank-1' : index === 1 ? 'rank-2' : 'rank-3'}`}>
-                                                    <div className="flex items-center gap-3">
-                                                        <span className={`text-2xl font-bold ${index === 0 ? 'trophy-gold' : index === 1 ? 'trophy-silver' : 'trophy-bronze'}`}>
-                                                            {index === 0 ? '🥇' : index === 1 ? '🥈' : '🥉'}
-                                                        </span>
-                                                        <div>
-                                                            <p className="font-semibold">{impostor.name}</p>
-                                                            <p className="text-sm text-gray-600">
-                                                                {impostor.wins} victorias • {impostor.games} partidas
+                                            {topImpostors.map((impostor, index) => {
+                                                const winRate = impostor.games > 0 ? Math.round((impostor.wins / impostor.games) * 100) : 0;
+                                                return (
+                                                    <div key={impostor.id} className={`p-3 rounded-lg flex items-center justify-between ${index === 0 ? 'rank-1' : index === 1 ? 'rank-2' : 'rank-3'}`}>
+                                                        <div className="flex items-center gap-3">
+                                                            <span className={`text-2xl font-bold ${index === 0 ? 'trophy-gold' : index === 1 ? 'trophy-silver' : 'trophy-bronze'}`}>
+                                                                {index === 0 ? '🥇' : index === 1 ? '🥈' : '🥉'}
+                                                            </span>
+                                                            <div>
+                                                                <p className="font-semibold">{impostor.name}</p>
+                                                                <p className="text-sm text-gray-600">
+                                                                    {impostor.wins}/{impostor.games} victorias ({winRate}%)
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                        <div className="text-right">
+                                                            <p className="text-xl font-bold">{impostor.points} pts</p>
+                                                            <p className="text-xs text-gray-500">
+                                                                {index === 0 ? '🥇 Mejor mentiroso' : index === 1 ? '🥈 Gran impostor' : '🥉 Buen impostor'}
                                                             </p>
                                                         </div>
                                                     </div>
-                                                    <div className="text-right">
-                                                        <p className="text-xl font-bold">{impostor.points} pts</p>
-                                                        <p className="text-xs text-gray-500">
-                                                            {index === 0 ? '🥇 Líder' : index === 1 ? '🥈 Segundo' : '🥉 Tercero'}
-                                                        </p>
-                                                    </div>
-                                                </div>
-                                            ))}
+                                                );
+                                            })}
                                         </div>
+                                        <p className="text-xs text-gray-500 mt-2">
+                                            * Puntos: +3 por ganar (no ser descubierto), 0 por perder
+                                        </p>
                                     </div>
                                 )}
                                 
