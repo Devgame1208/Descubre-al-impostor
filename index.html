@@ -6,7 +6,7 @@
     <title>ImpostorWho - ¿Quién es el impostor?</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        /* Animaciones personalizadas CORREGIDAS */
+        /* Animaciones personalizadas */
         @keyframes bounceRed {
             0%, 100% { transform: scale(1); color: #dc2626; }
             25% { transform: scale(1.3); color: #ef4444; }
@@ -29,6 +29,12 @@
             to { transform: translateX(0); opacity: 1; }
         }
         
+        @keyframes countdown {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+        
         .impostor-bounce {
             animation: bounceRed 2s ease-in-out;
         }
@@ -43,6 +49,10 @@
         
         .slide-in {
             animation: slideIn 0.5s ease-out;
+        }
+        
+        .countdown-animation {
+            animation: countdown 1s infinite;
         }
         
         .trophy-gold { color: #FFD700; text-shadow: 0 0 10px rgba(255, 215, 0, 0.5); }
@@ -78,6 +88,15 @@
             0%, 100% { transform: translateX(0); }
             25% { transform: translateX(-5px); }
             75% { transform: translateX(5px); }
+        }
+        
+        .blink {
+            animation: blink 1s infinite;
+        }
+        
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
         }
     </style>
 </head>
@@ -122,7 +141,8 @@
                 eyeOff: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>,
                 trophy: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>,
                 star: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>,
-                refresh: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M3 21v-5h5"/></svg>
+                refresh: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M3 21v-5h5"/></svg>,
+                clock: <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
             };
             return icons[type] || null;
         };
@@ -167,9 +187,13 @@
             const [showWord, setShowWord] = useState(false);
             const [showImpostorAnimation, setShowImpostorAnimation] = useState(false);
             const [votingError, setVotingError] = useState('');
+            const [roundTransition, setRoundTransition] = useState(false);
+            const [transitionCountdown, setTransitionCountdown] = useState(5);
             
             const wordRevealTimer = useRef(null);
             const impostorAnimationTimer = useRef(null);
+            const playerTimerRef = useRef(null);
+            const transitionTimerRef = useRef(null);
             
             const players = Object.values(roomData?.players || {});
             const isHost = roomData?.host === currentPlayerId;
@@ -185,6 +209,7 @@
                     // Limpiar timers anteriores
                     if (wordRevealTimer.current) clearTimeout(wordRevealTimer.current);
                     if (impostorAnimationTimer.current) clearTimeout(impostorAnimationTimer.current);
+                    if (playerTimerRef.current) clearInterval(playerTimerRef.current);
                     
                     // Mostrar palabra temporalmente para jugadores normales
                     if (!isImpostor) {
@@ -206,8 +231,46 @@
                 return () => {
                     if (wordRevealTimer.current) clearTimeout(wordRevealTimer.current);
                     if (impostorAnimationTimer.current) clearTimeout(impostorAnimationTimer.current);
+                    if (playerTimerRef.current) clearInterval(playerTimerRef.current);
                 };
             }, [gameStarted, gamePhase, isImpostor]);
+            
+            // Efecto para transición entre rondas
+            useEffect(() => {
+                if (gameStarted && gamePhase === 'playing') {
+                    const currentIndex = roomData?.game?.currentTurnIndex || 0;
+                    const totalTurns = roomData?.game?.totalTurns || 0;
+                    
+                    // Verificar si es el último turno de la ronda
+                    if (currentIndex > 0 && currentIndex % players.length === 0) {
+                        const isLastPlayerOfRound = currentIndex === players.length * 3;
+                        
+                        if (isLastPlayerOfRound) {
+                            // Iniciar transición de 5 segundos
+                            setRoundTransition(true);
+                            setTransitionCountdown(5);
+                            
+                            transitionTimerRef.current = setInterval(() => {
+                                setTransitionCountdown(prev => {
+                                    if (prev <= 1) {
+                                        clearInterval(transitionTimerRef.current);
+                                        setRoundTransition(false);
+                                        return 0;
+                                    }
+                                    return prev - 1;
+                                });
+                            }, 1000);
+                            
+                            return () => {
+                                if (transitionTimerRef.current) clearInterval(transitionTimerRef.current);
+                            };
+                        }
+                    } else {
+                        setRoundTransition(false);
+                        setTransitionCountdown(5);
+                    }
+                }
+            }, [roomData?.game?.currentTurnIndex, gameStarted, gamePhase, players.length]);
             
             // Escuchar cambios en la sala
             useEffect(() => {
@@ -226,9 +289,64 @@
                 }
             }, [roomCode]);
             
+            // Timer de jugador CORREGIDO - 30 segundos exactos
+            useEffect(() => {
+                if (gameStarted && gamePhase === 'playing' && !roundTransition) {
+                    const currentIndex = roomData?.game?.currentTurnIndex || 0;
+                    const currentPlayer = players[currentIndex % players.length];
+                    const currentRound = Math.floor(currentIndex / players.length) + 1;
+                    const hasResponded = roomData?.game?.responses?.[currentPlayer?.id]?.[currentRound];
+                    
+                    // Limpiar timer anterior
+                    if (playerTimerRef.current) {
+                        clearInterval(playerTimerRef.current);
+                        playerTimerRef.current = null;
+                    }
+                    
+                    // Solo activar timer para jugador actual que no sea bot y no haya respondido
+                    if (currentPlayer && !currentPlayer.isBot && !hasResponded && currentPlayer.id === currentPlayerId) {
+                        console.log(`Iniciando timer para ${currentPlayer.name}`);
+                        
+                        const startTime = Date.now();
+                        const timeLimit = 30000; // 30 segundos exactos
+                        let remainingSeconds = 30;
+                        
+                        // Establecer tiempo inicial
+                        database.ref(`rooms/${roomCode}/game/timer`).set(remainingSeconds);
+                        
+                        playerTimerRef.current = setInterval(() => {
+                            const elapsed = Date.now() - startTime;
+                            remainingSeconds = Math.max(0, Math.floor((timeLimit - elapsed) / 1000));
+                            
+                            // Actualizar solo si cambió
+                            database.ref(`rooms/${roomCode}/game/timer`).set(remainingSeconds);
+                            
+                            if (remainingSeconds === 0) {
+                                clearInterval(playerTimerRef.current);
+                                playerTimerRef.current = null;
+                                console.log(`Timer terminado para ${currentPlayer.name}`);
+                                
+                                // Enviar respuesta automática
+                                submitClue('(sin respuesta)');
+                            }
+                        }, 1000); // Actualizar cada segundo
+                    } else {
+                        // Limpiar timer si no es el turno del jugador
+                        database.ref(`rooms/${roomCode}/game/timer`).set(null);
+                    }
+                }
+                
+                return () => {
+                    if (playerTimerRef.current) {
+                        clearInterval(playerTimerRef.current);
+                        playerTimerRef.current = null;
+                    }
+                };
+            }, [roomData?.game?.currentTurnIndex, gamePhase, players, roomData?.game?.responses, roomCode, currentPlayerId, gameStarted, roundTransition]);
+            
             // Lógica para bots
             useEffect(() => {
-                if (gameStarted && gamePhase === 'playing') {
+                if (gameStarted && gamePhase === 'playing' && !roundTransition) {
                     const currentIndex = roomData?.game?.currentTurnIndex || 0;
                     const currentPlayer = players[currentIndex % players.length];
                     const currentRound = Math.floor(currentIndex / players.length) + 1;
@@ -311,37 +429,7 @@
                         return () => clearTimeout(voteTimeout);
                     }
                 }
-            }, [roomData?.game?.currentTurnIndex, gamePhase, players, roomData?.game?.votes, roomData?.game?.responses, roomCode]);
-            
-            // Temporizador para turnos
-            useEffect(() => {
-                if (gameStarted && gamePhase === 'playing') {
-                    const currentIndex = roomData?.game?.currentTurnIndex || 0;
-                    const currentPlayer = players[currentIndex % players.length];
-                    const currentRound = Math.floor(currentIndex / players.length) + 1;
-                    const hasResponded = roomData?.game?.responses?.[currentPlayer?.id]?.[currentRound];
-                    
-                    if (currentPlayer && !currentPlayer.isBot && !hasResponded) {
-                        const startTime = Date.now();
-                        const timeLimit = 30000;
-                        
-                        const timerInterval = setInterval(() => {
-                            const elapsed = Date.now() - startTime;
-                            const remaining = Math.max(0, Math.ceil((timeLimit - elapsed) / 1000));
-                            database.ref(`rooms/${roomCode}/game/timer`).set(remaining);
-                            
-                            if (remaining === 0) {
-                                clearInterval(timerInterval);
-                                submitClue('(sin respuesta)');
-                            }
-                        }, 1000);
-                        
-                        return () => clearInterval(timerInterval);
-                    } else {
-                        database.ref(`rooms/${roomCode}/game/timer`).set(null);
-                    }
-                }
-            }, [roomData?.game?.currentTurnIndex, gamePhase, players, roomData?.game?.responses, roomCode]);
+            }, [roomData?.game?.currentTurnIndex, gamePhase, players, roomData?.game?.votes, roomData?.game?.responses, roomCode, roundTransition]);
             
             // Funciones principales
             const generateRoomCode = () => {
@@ -457,6 +545,8 @@
                 // Resetear estados de animación
                 setShowWord(false);
                 setShowImpostorAnimation(false);
+                setRoundTransition(false);
+                setTransitionCountdown(5);
                 
                 await database.ref(`rooms/${roomCode}/game`).update({
                     started: true,
@@ -480,6 +570,12 @@
                 const currentPlayer = players[currentIndex % players.length];
                 const currentRound = Math.floor(currentIndex / players.length) + 1;
                 
+                // Limpiar timer del jugador
+                if (playerTimerRef.current) {
+                    clearInterval(playerTimerRef.current);
+                    playerTimerRef.current = null;
+                }
+                
                 await database.ref(`rooms/${roomCode}/game/responses/${currentPlayer.id}/${currentRound}`).set({
                     round: currentRound,
                     clue,
@@ -488,10 +584,13 @@
                 
                 const nextIndex = currentIndex + 1;
                 if (nextIndex >= (roomData?.game?.totalTurns || 0)) {
-                    await database.ref(`rooms/${roomCode}/game`).update({
-                        phase: 'voting',
-                        currentTurnIndex: nextIndex
-                    });
+                    // Último turno - iniciar votación después de 5 segundos
+                    setTimeout(() => {
+                        database.ref(`rooms/${roomCode}/game`).update({
+                            phase: 'voting',
+                            currentTurnIndex: nextIndex
+                        });
+                    }, 5000);
                 } else {
                     await database.ref(`rooms/${roomCode}/game`).update({
                         currentTurnIndex: nextIndex
@@ -604,6 +703,8 @@
                     // Resetear estados de animación
                     setShowWord(false);
                     setShowImpostorAnimation(false);
+                    setRoundTransition(false);
+                    setTransitionCountdown(5);
                     
                     await database.ref(`rooms/${roomCode}/game`).set({
                         started: false,
@@ -627,6 +728,8 @@
                     // Resetear estados de animación
                     setShowWord(false);
                     setShowImpostorAnimation(false);
+                    setRoundTransition(false);
+                    setTransitionCountdown(5);
                     
                     await database.ref(`rooms/${roomCode}`).update({
                         game: { 
@@ -671,6 +774,8 @@
                     setShowWord(false);
                     setShowImpostorAnimation(false);
                     setVotingError('');
+                    setRoundTransition(false);
+                    setTransitionCountdown(5);
                 }
             };
             
@@ -923,13 +1028,15 @@
                 );
             }
             
-            // Pantalla de juego (dando pistas)
+            // Pantalla de juego (dando pistas) - MEJORADA
             if (gameStarted && gamePhase === 'playing') {
                 const currentIndex = roomData?.game?.currentTurnIndex || 0;
                 const currentPlayer = players[currentIndex % players.length];
                 const isMyTurn = currentPlayer?.id === currentPlayerId;
                 const currentRound = Math.floor(currentIndex / players.length) + 1;
                 const word = roomData?.game?.word;
+                const timerValue = roomData?.game?.timer;
+                const isLastTurn = currentIndex >= (roomData?.game?.totalTurns || 0) - 1;
                 
                 return (
                     <div className="min-h-screen bg-gradient-to-br from-indigo-600 via-purple-500 to-pink-500 p-4">
@@ -943,15 +1050,31 @@
                                         <div className="bg-green-100 rounded-full px-4 py-2">
                                             <span className="font-bold text-green-600">Turno {currentIndex + 1}/{roomData?.game?.totalTurns}</span>
                                         </div>
-                                        {!currentPlayer?.isBot && roomData?.game?.timer !== null && (
-                                            <div className={`rounded-full px-4 py-2 ${(roomData?.game?.timer || 0) <= 10 ? 'bg-red-100' : 'bg-blue-100'}`}>
-                                                <span className={`font-bold ${(roomData?.game?.timer || 0) <= 10 ? 'text-red-600' : 'text-blue-600'}`}>
-                                                    ⏱️ {roomData?.game?.timer || 0}s
+                                        {!currentPlayer?.isBot && timerValue !== null && timerValue !== undefined && (
+                                            <div className={`rounded-full px-4 py-2 ${timerValue <= 10 ? 'bg-red-100 blink' : 'bg-blue-100'}`}>
+                                                <span className={`font-bold ${timerValue <= 10 ? 'text-red-600 countdown-animation' : 'text-blue-600'}`}>
+                                                    ⏱️ {timerValue}s
                                                 </span>
                                             </div>
                                         )}
                                     </div>
                                 </div>
+                                
+                                {/* Transición entre rondas */}
+                                {roundTransition && (
+                                    <div className="mb-6 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl p-6 text-center text-white fade-in">
+                                        <h3 className="text-2xl font-bold mb-2">¡Fin de la ronda {currentRound}!</h3>
+                                        <p className="text-lg mb-4">Preparando siguiente ronda...</p>
+                                        <div className="flex items-center justify-center gap-3">
+                                            <Icon type="clock" size={32} />
+                                            <span className="text-4xl font-bold">{transitionCountdown}</span>
+                                            <span className="text-lg">segundos</span>
+                                        </div>
+                                        <p className="text-sm opacity-80 mt-3">
+                                            Todos pueden ver las pistas de esta ronda antes de continuar
+                                        </p>
+                                    </div>
+                                )}
                                 
                                 {/* Área de palabra/impostor */}
                                 <div className={`relative rounded-xl p-6 mb-6 transition-all duration-300 ${
@@ -1017,10 +1140,15 @@
                                 <div className="bg-blue-50 rounded-xl p-4 mb-6">
                                     <p className="text-center font-semibold text-lg">
                                         Turno de: <span className="text-blue-600">{currentPlayer?.name}</span>
+                                        {isLastTurn && !roundTransition && (
+                                            <span className="ml-2 text-sm text-red-600 font-normal">
+                                                (Último turno)
+                                            </span>
+                                        )}
                                     </p>
                                 </div>
                                 
-                                {isMyTurn ? (
+                                {isMyTurn && !roundTransition ? (
                                     <div className="space-y-4">
                                         <input 
                                             type="text" 
@@ -1034,21 +1162,45 @@
                                             }}
                                             placeholder="Escribe tu pista..."
                                             className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-purple-500 focus:outline-none text-lg"
+                                            disabled={roundTransition}
                                         />
                                         <button 
                                             onClick={() => {
                                                 submitClue(clueInput);
                                                 setClueInput('');
                                             }}
-                                            disabled={!clueInput.trim()}
+                                            disabled={!clueInput.trim() || roundTransition}
                                             className="w-full bg-green-500 hover:bg-green-600 disabled:bg-gray-300 text-white font-semibold py-3 rounded-xl transition"
                                         >
                                             Enviar Pista
                                         </button>
+                                        
+                                        {timerValue !== null && timerValue !== undefined && (
+                                            <div className="text-center">
+                                                <p className="text-sm text-gray-600">
+                                                    Tiempo restante: <span className={`font-bold ${timerValue <= 10 ? 'text-red-600' : 'text-blue-600'}`}>{timerValue}s</span>
+                                                </p>
+                                                {timerValue <= 10 && (
+                                                    <p className="text-xs text-red-500 mt-1">¡Date prisa!</p>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                ) : roundTransition ? (
+                                    <div className="text-center text-gray-600 py-6">
+                                        <p className="text-lg">Preparando siguiente ronda...</p>
+                                        <p className="text-sm text-gray-500 mt-2">
+                                            Espera {transitionCountdown} segundos
+                                        </p>
                                     </div>
                                 ) : (
                                     <div className="text-center text-gray-600 py-6">
                                         Esperando a que {currentPlayer?.name} dé su pista...
+                                        {timerValue !== null && timerValue !== undefined && (
+                                            <p className="text-sm mt-2">
+                                                Tiempo restante: <span className="font-bold">{timerValue}s</span>
+                                            </p>
+                                        )}
                                     </div>
                                 )}
                                 
@@ -1072,7 +1224,7 @@
                 );
             }
             
-            // Pantalla de votación - CORREGIDA
+            // Pantalla de votación
             if (gamePhase === 'voting') {
                 const votes = roomData?.game?.votes || {};
                 const hasVoted = votes[currentPlayerId];
